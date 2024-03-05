@@ -18,9 +18,37 @@ media_horas_trabalhadas_mensais <- media_horas_trabalhadas_semanais * 4
 mediana_horas_trabalhadas_mensais <- mediana_horas_trabalhadas_semanais * 4
 
 #estimativa de variância
-variancia_horas_trabalhadas_mensais<- 9*(sqrt(media_horas_trabalhadas_mensais-mediana_horas_trabalhadas_mensais) )
+variancia_horas_trabalhadas_mensais<- 9*((media_horas_trabalhadas_mensais-mediana_horas_trabalhadas_mensais)^2 )
 desvio_padrao<- sqrt(variancia_horas_trabalhadas_mensais)
 
+desvio_padrao <- 3*(media_horas_trabalhadas_mensais-mediana_horas_trabalhadas_mensais)
 
 #margem de erro
 margem_erro<- 1.96*(media_horas_trabalhadas_mensais/sqrt(tamanho_amostra))
+
+#Uma distribuição aleatória baseada na amostra
+
+
+###Fazer o cálculo considerando uma distribuição t-student
+
+
+#Considerando a amostra da pesquisa em BH
+set.seed(1972)
+
+distribuicao_aleatoria<-
+rnorm(400, mean = media_horas_trabalhadas_mensais,  desvio_padrao)
+
+hist(distribuicao_aleatoria)
+
+
+#Considerando a extrapolação para o número do IBGE que indica 778 mil motoristas de aplicativo
+
+set.seed(1972)
+
+distribuicao_aleatoria_brasil<-
+  rnorm(778000, mean = media_horas_trabalhadas_mensais,  desvio_padrao)
+
+hist(distribuicao_aleatoria_brasil)
+
+
+#Aplicando a distribuição aleatória

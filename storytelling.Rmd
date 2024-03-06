@@ -80,6 +80,8 @@ calcula_arrecadacao_total <- function(media_horas_trabalhadas_semanais, parametr
   # Lista para armazenar os intervalos de confiança e resultados
   resultados <- list()
   
+  resultados$cenario <- paste(media_horas_trabalhadas_semanais,"horas")
+  
   # Intervalo de confiança
   resultados$horas_trabalhadas_semanais <- intervalo_confianca(media_horas_trabalhadas_semanais, desvio_padrao, parametros$tamanho_amostra)
   
@@ -141,275 +143,43 @@ cenario_52<- calcula_arrecadacao_total(52, parametros = parametros)
 
 cenario_40<- calcula_arrecadacao_total(40, parametros = parametros)
 
+cenarios<-  purrr::map_dfr(30:52, function(horas_semanais){
+    print(horas_semanais)
+    resultado = calcula_arrecadacao_total(horas_semanais, parametros)
+    as_tibble(resultado)
+    
+  })
+
+cenarios_trabalho<-
+cenarios%>%
+  pivot_longer(cols = 2:11, names_to = "medida", values_to = "valor") %>%
+  summarise(lim_inferior = min(valor),
+          lim_superior =max(valor),
+          media = mean(valor),
+          .by = c(cenario, medida))
+
+
+
 ```
 
 ##Comparações de receita arrecadada mensal para diversos cenários
+```{r}
+library(ggplot2)
+
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "total_arrecadacao_mensal") %>%
+  mutate(media= media/10^6,
+         color = ifelse(cenario == "40 horas", "orange", ifelse(cenario == "52 horas", "red", "white"))) 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
 
 
-
-
-
-## Comparações entre médias de horas trabalhadas semanais
-
-
-
-```{r, fig.height= 3}
-tibble(media=mean(cenario_52$horas_trabalhadas_semanais), 
-       lim_inferior = cenario_52$horas_trabalhadas_semanais[1],
-       lim_superior = cenario_52$horas_trabalhadas_semanais[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$horas_trabalhadas_semanais), 
-       lim_inferior = cenario_40$horas_trabalhadas_semanais[1],
-       lim_superior = cenario_40$horas_trabalhadas_semanais[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de horas trabalhadas semanais",
-    x= "",
-    y=""
-  )
-
-
-```
-
-## Comparações entre médias de horas trabalhadas mensais
-
-
-```{r, fig.height= 3}
-tibble(media=mean(cenario_52$horas_trabalhadas_mensais), 
-       lim_inferior = cenario_52$horas_trabalhadas_mensais[1],
-       lim_superior = cenario_52$horas_trabalhadas_mensais[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$horas_trabalhadas_mensais), 
-       lim_inferior = cenario_40$horas_trabalhadas_mensais[1],
-       lim_superior = cenario_40$horas_trabalhadas_mensais[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de horas trabalhadas mensais",
-    x= "",
-    y=""
-  )
-```
-
-
-## Comparações entre remuneração mínima
-
-
-```{r, fig.height= 3}
-tibble(media=mean(cenario_52$remuneracao_minima), 
-       lim_inferior = cenario_52$remuneracao_minima[1],
-       lim_superior = cenario_52$remuneracao_minima[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$remuneracao_minima), 
-       lim_inferior = cenario_40$remuneracao_minima[1],
-       lim_superior = cenario_40$remuneracao_minima[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de remuneração mínima",
-    x= "",
-    y=""
-  )
-```
-
-
-## Comparações entre salários contribuições
-
-
-```{r, fig.height= 3}
-
-tibble(media=mean(cenario_52$salario_contribuicao), 
-       lim_inferior = cenario_52$salario_contribuicao[1],
-       lim_superior = cenario_52$salario_contribuicao[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$salario_contribuicao), 
-       lim_inferior = cenario_40$salario_contribuicao[1],
-       lim_superior = cenario_40$salario_contribuicao[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de salário contribuição",
-    x= "",
-    y=""
-  )
-```
-
-
-## Comparações entre Contribuição de empresas
-
-
-```{r, fig.height= 3, fig.width=6}
-
-tibble(media=mean(cenario_52$contribuicao_empresa), 
-       lim_inferior = cenario_52$contribuicao_empresa[1],
-       lim_superior = cenario_52$contribuicao_empresa[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$contribuicao_empresa), 
-       lim_inferior = cenario_40$contribuicao_empresa[1],
-       lim_superior = cenario_40$contribuicao_empresa[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de contribuição de empresa ao RGPS",
-    x= "",
-    y=""
-  )
-```
-
-
-## Comparações entre Contribuição de autônomos
-
-
-```{r, fig.height= 3, fig.width=6}
-
-tibble(media=mean(cenario_52$contribuicao_autonomo), 
-       lim_inferior = cenario_52$contribuicao_autonomo[1],
-       lim_superior = cenario_52$contribuicao_autonomo[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$contribuicao_autonomo), 
-       lim_inferior = cenario_40$contribuicao_autonomo[1],
-       lim_superior = cenario_40$contribuicao_autonomo[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de contribuição de autônomo ao RGPS",
-    x= "",
-    y=""
-  )
-```
-
-
-## Comparações entre Remuneração líquida de previdência
-
-
-```{r, fig.height= 3, fig.width=6}
-
-tibble(media=mean(cenario_52$remuneracao_liquida_previdencia), 
-       lim_inferior = cenario_52$remuneracao_liquida_previdencia[1],
-       lim_superior = cenario_52$remuneracao_liquida_previdencia[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$remuneracao_liquida_previdencia), 
-       lim_inferior = cenario_40$remuneracao_liquida_previdencia[1],
-       lim_superior = cenario_40$remuneracao_liquida_previdencia[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de remuneração líquida de RGPS",
-    x= "",
-    y=""
-  )
-```
-
-
-## Comparações entre Arrecadação para RGPS
-
-
-```{r, fig.height= 3, fig.width=6}
-
-tibble(media=mean(cenario_52$arrecadacao_receita), 
-       lim_inferior = cenario_52$arrecadacao_receita[1],
-       lim_superior = cenario_52$arrecadacao_receita[2],
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$arrecadacao_receita), 
-       lim_inferior = cenario_40$arrecadacao_receita[1],
-       lim_superior = cenario_40$arrecadacao_receita[2],
-       cenario = "40 horas semanais")
-  ) %>%
-  ggplot(aes(y=cenario, x=media), ) +
-  geom_col(fill= "white") +
-  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
-  theme_light() +
-  theme(
-    panel.background = element_rect(fill="black"),
-    panel.grid = element_blank()
-  ) +
-  labs(
-    title = "Estimativa de arrecadação de RGPS",
-    x= "",
-    y=""
-  )
-```
-
-
-## Comparações entre Arrecadação mensal total
-
-
-```{r, fig.height= 3, fig.width=6}
-
-tibble(media=mean(cenario_52$total_arrecadacao_mensal),
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$total_arrecadacao_mensal),
-       cenario = "40 horas semanais")
-  ) %>%
-  mutate(media = media/10^6)%>%
+dados%>%
   ggplot(aes(y=cenario, x=media)) +
-  geom_col(fill= "white") +
+  geom_col(fill = colors) +
+  geom_text(aes(label = paste(round(media, 1))), hjust = 1.2, size = 3, color = "black") +
   theme_light() +
   theme(
     panel.background = element_rect(fill="black"),
@@ -421,32 +191,269 @@ tibble(media=mean(cenario_52$total_arrecadacao_mensal),
     x= "",
     y=""
   )
+
+
 ```
 
+##Comparações de receita arrecadada anual para diversos cenários
 
-## Comparações entre Arrecadação anual total
+```{r}
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "total_arrecadacao_anual") %>%
+  mutate(media= media/10^9) 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
 
 
-```{r, fig.height= 3, fig.width=6}
-
-tibble(media=mean(cenario_52$total_arrecadacao_anual),
-       cenario = "52 horas semanais") %>%
-  bind_rows(
-    tibble(media=mean(cenario_40$total_arrecadacao_anual),
-       cenario = "40 horas semanais")
-  ) %>%
-  mutate(media = media/10^9)%>%
+dados%>%
   ggplot(aes(y=cenario, x=media)) +
-  geom_col(fill= "white") +
+  geom_col(fill = colors) +
+  geom_text(aes(label = paste(round(media, 1))), hjust = 1.2, size = 3, color = "black") +
   theme_light() +
   theme(
     panel.background = element_rect(fill="black"),
     panel.grid = element_blank()
   ) +
   labs(
-    title = "Estimativa de arrecadação mensal total",
+    title = "Estimativa de arrecadação anual total",
     subtitle = "valores em R$bi",
     x= "",
     y=""
   )
+
 ```
+
+
+
+## Comparações entre médias de horas trabalhadas semanais
+
+
+
+```{r}
+
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "horas_trabalhadas_semanais") 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
+
+
+dados%>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill = colors) +
+  #geom_text(aes(label = paste(round(media, 1))), hjust = 3, size = 3, color = "black") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "blue", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de horas trabalhadas semanais",
+    x= "",
+    y="cenário"
+  )
+
+
+
+
+```
+
+## Comparações entre médias de horas trabalhadas mensais
+
+
+```{r}
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "horas_trabalhadas_mensais") 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
+
+
+dados%>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill = colors) +
+  geom_text(aes(label = paste(round(media, 1))), hjust = 2, size = 3, color = "black") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "blue", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de horas trabalhadas mensais",
+    x= "",
+    y="cenário"
+  )
+
+
+```
+
+
+## Comparações entre remuneração mínima
+
+
+```{r}
+
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "remuneracao_minima") 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
+
+
+dados%>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill = colors) +
+  geom_text(aes(label = format(round(media,2), decimal.mark = ",", big.mark = ".")), hjust = 1.8, size = 3, color = "black") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "blue", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de remuneração mínima",
+    x= "",
+    y="cenário"
+  )
+
+```
+
+
+## Comparações entre salários contribuições
+
+
+```{r}
+
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "salario_contribuicao") 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
+
+
+dados%>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill = colors) +
+  geom_text(aes(label = format(round(media,2), decimal.mark = ",", big.mark = ".")), hjust = 1.8, size = 3, color = "black") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "blue", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de salário contribuição",
+    x= "",
+    y="cenário"
+  )
+
+
+```
+
+
+## Comparações entre Contribuição de empresas
+
+
+```{r}
+
+
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "contribuicao_empresa") 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
+
+
+dados%>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill = colors) +
+  geom_text(aes(label = format(round(media,2), decimal.mark = ",", big.mark = ".")), hjust = 1.8, size = 3, color = "black") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "blue", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de contribuição de empresas por autônomo",
+    x= "",
+    y="cenário"
+  )
+
+
+```
+
+
+## Comparações entre Contribuição de autônomos
+
+
+```{r}
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "contribuicao_autonomo") 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
+
+
+dados%>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill = colors) +
+  geom_text(aes(label = format(round(media,2), decimal.mark = ",", big.mark = ".")), hjust = 1.8, size = 3, color = "black") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "blue", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de contribuição de autônomo",
+    x= "",
+    y="cenário"
+  )
+
+
+```
+
+
+## Comparações entre Remuneração líquida de previdência
+
+
+```{r}
+
+dados<-
+cenarios_trabalho %>%
+  filter(medida == "remuneracao_liquida_previdencia") 
+
+colors = ifelse(dados$cenario == "40 horas", "orange", 
+               ifelse(dados$cenario == "52 horas", "red", "white"))
+
+
+dados%>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill = colors) +
+  geom_text(aes(label = format(round(media,2), decimal.mark = ",", big.mark = ".")), hjust = 1.8, size = 3, color = "black") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "blue", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de remuneração líquida de RGPS",
+    x= "",
+    y="cenário"
+  )
+
+
+```
+

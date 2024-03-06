@@ -1,0 +1,452 @@
+---
+title: "storytelling aplicativos"
+author: "Fernando Almeida Barbalho"
+date: '2024-03-06'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(tidyverse)
+
+### funções
+intervalo_confianca <- function(media, dp = NULL, n = NULL, distribuicao = NULL, z = 1.96) {
+  if (!is.null(distribuicao)) {
+    n <- NROW(distribuicao)
+    media <- mean(distribuicao)
+    dp <- sd(distribuicao)
+  }
+  
+  margem_erro <- z * dp/sqrt(n)
+  c(media - margem_erro, media + margem_erro)
+}
+
+
+### Variáveis
+
+remuneracao_servico_prestado<- 8.03 #parcela da remuneração mínima indicada para a remuneração do trabalhador
+ressarcimento_custos<- 24.07 #parcela da remuneração mínima indicada ressarcimento de custos do trabalhador
+remuneracao_minima<- remuneracao_servico_prestado + ressarcimento_custos #valor por hora que deve ser garantido pelo aplicativo. corresponde  ao período entre a aceitação da viagem pelo trabalhador e a chegada do usuário ao destino
+
+referencia_salario_contribuicao<- 0.25 #percentual sobre o valor bruto auferido no mês
+aliquota_previdenciaria_empresa<- 0.2 #alíquota de contribuição à previdência aplicada sobre o salário contribuição paga pela empresa
+aliquota_previdenciaria_autonomo<- 0.075 #alíquota de contribuição à previdência aplicada sobre o salário contribuição paga pelo trabalhador
+
+tamanho_amostra<- 400
+mediana_horas_trabalhadas_semanais <- 50
+
+media_horas_trabalhadas_semanais <- 52
+
+#### Referência de dados de uma pesquisa de BH
+
+parametros <- list(
+  remuneracao_servico_prestado = remuneracao_servico_prestado,
+  ressarcimento_custos = ressarcimento_custos,
+  remuneracao_minima = remuneracao_minima,
+  referencia_salario_contribuicao = referencia_salario_contribuicao,
+  aliquota_previdenciaria_empresa = aliquota_previdenciaria_empresa,
+  aliquota_previdenciaria_autonomo = aliquota_previdenciaria_autonomo,
+  tamanho_amostra = tamanho_amostra,
+  mediana_horas_trabalhadas_semanais = mediana_horas_trabalhadas_semanais
+)
+
+
+calcula_arrecadacao_total <- function(media_horas_trabalhadas_semanais, parametros) {
+  
+  mediana_horas_trabalhadas_semanais <- media_horas_trabalhadas_semanais * (1 - 0.04)
+  
+  # Uma distribuição aleatória baseada na amostra
+  
+  # Considerando a amostra da pesquisa em BH
+  # Identificação de uma distribuição de valores compatível com os dados da pesquisa
+  
+  monte_carlo <- map_dfr(1:1000, function(my_seed) {
+    set.seed(my_seed)
+    dp <- sample(5:20, size = 1)
+    set.seed(my_seed)
+    distribuicao <- rnorm(parametros$tamanho_amostra, media_horas_trabalhadas_semanais, dp)
+    media <- mean(distribuicao)
+    mediana <- median(distribuicao)
+    diferenca <- abs(media - media_horas_trabalhadas_semanais) + abs(mediana - parametros$mediana_horas_trabalhadas_semanais)
+    tibble::tibble(my_seed, media = media, mediana = mediana, dp = dp, diferenca = diferenca)
+  })
+  
+  # Ordena o dataframe com a simulação para capturar o valor com menor diferença em relação à média e mediana
+  monte_carlo <- arrange(monte_carlo, diferenca)
+  
+  desvio_padrao <- monte_carlo$dp[1]
+  
+  # Lista para armazenar os intervalos de confiança e resultados
+  resultados <- list()
+  
+  # Intervalo de confiança
+  resultados$horas_trabalhadas_semanais <- intervalo_confianca(media_horas_trabalhadas_semanais, desvio_padrao, parametros$tamanho_amostra)
+  
+  # Margem de erro mensal
+  set.seed(monte_carlo$my_seed[1])
+  distribuicao_aleatoria <- rnorm(400, mean = media_horas_trabalhadas_semanais, desvio_padrao)
+  distribuicao_aleatoria_mensal <- distribuicao_aleatoria * 4
+  
+  resultados$horas_trabalhadas_mensais <- intervalo_confianca(distribuicao = distribuicao_aleatoria_mensal)
+  
+  # Parâmetros de remuneração e custos
+  ###### Remuneração mínima
+  
+  distribuicao_remuneracao_minima <- distribuicao_aleatoria_mensal * parametros$remuneracao_minima
+  resultados$remuneracao_minima <- intervalo_confianca(distribuicao = distribuicao_remuneracao_minima)
+  
+  ##### Salário contribuição
+  
+  distribuicao_salario_contribuicao <- distribuicao_remuneracao_minima * parametros$referencia_salario_contribuicao 
+  resultados$salario_contribuicao <- intervalo_confianca(distribuicao = distribuicao_salario_contribuicao)
+  
+  ##### Contribuição empresa
+  
+  contribuicao_empresa <- distribuicao_salario_contribuicao * parametros$aliquota_previdenciaria_empresa
+  resultados$contribuicao_empresa <- intervalo_confianca(distribuicao = contribuicao_empresa)
+  
+  ######### Contribuição autônomo
+  
+  contribuicao_autonomo <- distribuicao_salario_contribuicao * parametros$aliquota_previdenciaria_autonomo
+  resultados$contribuicao_autonomo <- intervalo_confianca(distribuicao = contribuicao_autonomo)
+  
+  ########## Remuneração líquida de previdência
+  
+  remuneracao_liquida_de_previdencia <- distribuicao_remuneracao_minima - contribuicao_autonomo
+  resultados$remuneracao_liquida_previdencia <- intervalo_confianca(distribuicao = remuneracao_liquida_de_previdencia)
+  
+  ### Arrecadação Receita previdenciária
+  
+  arrecadacao_receita <- contribuicao_autonomo + contribuicao_empresa
+  
+  resultados$arrecadacao_receita <- intervalo_confianca(distribuicao = arrecadacao_receita)
+  
+  # Considerando a extrapolação para o número do IBGE que indica 778 mil motoristas de aplicativo
+  
+  set.seed(1972)
+  
+  # Distribuição hipotética da arrecadação tributária no Brasil
+  
+  distribuicao_aleatoria_brasil <- rnorm(778000, mean = mean(arrecadacao_receita), sd(arrecadacao_receita))
+  
+  resultados$total_arrecadacao_mensal <- sum(distribuicao_aleatoria_brasil)
+  
+  resultados$total_arrecadacao_anual <- sum(distribuicao_aleatoria_brasil) * 12
+  
+  return(resultados)
+}
+
+cenario_52<- calcula_arrecadacao_total(52, parametros = parametros)
+
+cenario_40<- calcula_arrecadacao_total(40, parametros = parametros)
+
+```
+
+##Comparações de receita arrecadada mensal para diversos cenários
+
+
+
+
+
+## Comparações entre médias de horas trabalhadas semanais
+
+
+
+```{r, fig.height= 3}
+tibble(media=mean(cenario_52$horas_trabalhadas_semanais), 
+       lim_inferior = cenario_52$horas_trabalhadas_semanais[1],
+       lim_superior = cenario_52$horas_trabalhadas_semanais[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$horas_trabalhadas_semanais), 
+       lim_inferior = cenario_40$horas_trabalhadas_semanais[1],
+       lim_superior = cenario_40$horas_trabalhadas_semanais[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de horas trabalhadas semanais",
+    x= "",
+    y=""
+  )
+
+
+```
+
+## Comparações entre médias de horas trabalhadas mensais
+
+
+```{r, fig.height= 3}
+tibble(media=mean(cenario_52$horas_trabalhadas_mensais), 
+       lim_inferior = cenario_52$horas_trabalhadas_mensais[1],
+       lim_superior = cenario_52$horas_trabalhadas_mensais[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$horas_trabalhadas_mensais), 
+       lim_inferior = cenario_40$horas_trabalhadas_mensais[1],
+       lim_superior = cenario_40$horas_trabalhadas_mensais[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de horas trabalhadas mensais",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre remuneração mínima
+
+
+```{r, fig.height= 3}
+tibble(media=mean(cenario_52$remuneracao_minima), 
+       lim_inferior = cenario_52$remuneracao_minima[1],
+       lim_superior = cenario_52$remuneracao_minima[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$remuneracao_minima), 
+       lim_inferior = cenario_40$remuneracao_minima[1],
+       lim_superior = cenario_40$remuneracao_minima[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de remuneração mínima",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre salários contribuições
+
+
+```{r, fig.height= 3}
+
+tibble(media=mean(cenario_52$salario_contribuicao), 
+       lim_inferior = cenario_52$salario_contribuicao[1],
+       lim_superior = cenario_52$salario_contribuicao[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$salario_contribuicao), 
+       lim_inferior = cenario_40$salario_contribuicao[1],
+       lim_superior = cenario_40$salario_contribuicao[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de salário contribuição",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre Contribuição de empresas
+
+
+```{r, fig.height= 3, fig.width=6}
+
+tibble(media=mean(cenario_52$contribuicao_empresa), 
+       lim_inferior = cenario_52$contribuicao_empresa[1],
+       lim_superior = cenario_52$contribuicao_empresa[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$contribuicao_empresa), 
+       lim_inferior = cenario_40$contribuicao_empresa[1],
+       lim_superior = cenario_40$contribuicao_empresa[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de contribuição de empresa ao RGPS",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre Contribuição de autônomos
+
+
+```{r, fig.height= 3, fig.width=6}
+
+tibble(media=mean(cenario_52$contribuicao_autonomo), 
+       lim_inferior = cenario_52$contribuicao_autonomo[1],
+       lim_superior = cenario_52$contribuicao_autonomo[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$contribuicao_autonomo), 
+       lim_inferior = cenario_40$contribuicao_autonomo[1],
+       lim_superior = cenario_40$contribuicao_autonomo[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de contribuição de autônomo ao RGPS",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre Remuneração líquida de previdência
+
+
+```{r, fig.height= 3, fig.width=6}
+
+tibble(media=mean(cenario_52$remuneracao_liquida_previdencia), 
+       lim_inferior = cenario_52$remuneracao_liquida_previdencia[1],
+       lim_superior = cenario_52$remuneracao_liquida_previdencia[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$remuneracao_liquida_previdencia), 
+       lim_inferior = cenario_40$remuneracao_liquida_previdencia[1],
+       lim_superior = cenario_40$remuneracao_liquida_previdencia[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de remuneração líquida de RGPS",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre Arrecadação para RGPS
+
+
+```{r, fig.height= 3, fig.width=6}
+
+tibble(media=mean(cenario_52$arrecadacao_receita), 
+       lim_inferior = cenario_52$arrecadacao_receita[1],
+       lim_superior = cenario_52$arrecadacao_receita[2],
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$arrecadacao_receita), 
+       lim_inferior = cenario_40$arrecadacao_receita[1],
+       lim_superior = cenario_40$arrecadacao_receita[2],
+       cenario = "40 horas semanais")
+  ) %>%
+  ggplot(aes(y=cenario, x=media), ) +
+  geom_col(fill= "white") +
+  geom_errorbar(aes(xmin = lim_inferior, xmax = lim_superior),color= "red", size=1) +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de arrecadação de RGPS",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre Arrecadação mensal total
+
+
+```{r, fig.height= 3, fig.width=6}
+
+tibble(media=mean(cenario_52$total_arrecadacao_mensal),
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$total_arrecadacao_mensal),
+       cenario = "40 horas semanais")
+  ) %>%
+  mutate(media = media/10^6)%>%
+  ggplot(aes(y=cenario, x=media)) +
+  geom_col(fill= "white") +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de arrecadação mensal total",
+    subtitle = "valores em R$mi",
+    x= "",
+    y=""
+  )
+```
+
+
+## Comparações entre Arrecadação anual total
+
+
+```{r, fig.height= 3, fig.width=6}
+
+tibble(media=mean(cenario_52$total_arrecadacao_anual),
+       cenario = "52 horas semanais") %>%
+  bind_rows(
+    tibble(media=mean(cenario_40$total_arrecadacao_anual),
+       cenario = "40 horas semanais")
+  ) %>%
+  mutate(media = media/10^9)%>%
+  ggplot(aes(y=cenario, x=media)) +
+  geom_col(fill= "white") +
+  theme_light() +
+  theme(
+    panel.background = element_rect(fill="black"),
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Estimativa de arrecadação mensal total",
+    subtitle = "valores em R$bi",
+    x= "",
+    y=""
+  )
+```

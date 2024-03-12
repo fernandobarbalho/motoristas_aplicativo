@@ -62,3 +62,29 @@ calcula_media_intervalo_confianca<- function (intervalo_confianca_medido){
 
 
 mean(arrecadaco_52$intervalo_confianca)
+
+
+
+resultados <- calcula_arrecadacao_total(media_horas_trabalhadas_semanais, parametros)
+
+
+# Separando os conteúdos dos componentes da lista
+resultados_separados <- lapply(resultados, function(comp) {
+  if (is.numeric(comp) && !grepl("total_arrecadacao_mensal|total_arrecadacao_geral", names(resultados))) {
+    list(Limite_Min = min(comp), Limite_Max = max(comp))
+  } else {
+    comp
+  }
+})
+
+# Criando novos componentes para os limites mínimo e máximo
+resultados_separados$Limite_Min <- NULL
+resultados_separados$Limite_Max <- NULL
+
+# Criando novos componentes para os limites mínimo e máximo de cada componente
+resultados_separados <- c(resultados_separados, lapply(resultados_separados[-c("total_arrecadacao_mensal", "total_arrecadacao_geral")], function(comp) {
+  list(Limite_Min = comp$Limite_Min, Limite_Max = comp$Limite_Max)
+}))
+
+# Removendo os componentes originais de cada componente
+resultados_separados <- resultados_separados[c("total_arrecadacao_mensal", "total_arrecadacao_geral", paste0(names(resultados), "_Limite_Min"), paste0(names(resultados), "_Limite_Max"))]
